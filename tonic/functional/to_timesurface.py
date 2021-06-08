@@ -15,7 +15,7 @@ def to_timesurface_numpy(
     Args:
         surface_dimensions (int, int): width does not have to be equal to height, however both numbers have to be odd.
         tau (float): time constant to decay events around occuring event with.
-        decay (str): can be either 'lin' or 'exp', corresponding to linear or exponential decay.
+        decay (str): can be 'lin', 'exp' or 'gau' corresponding to linear, exponential or gaussian decay.
         merge_polarities (bool): flag that tells whether polarities should be taken into account separately or not.
 
     Returns:
@@ -57,6 +57,9 @@ def to_timesurface_numpy(
             timesurface[timesurface < 0] = 0
         elif decay == "exp":
             timesurface = np.exp(timestamp_context / tau)
+            timesurface[timestamp_context < (-3 * tau)] = 0
+        elif decay == "gau":
+            timesurface = (1 / (tau * np.sqrt(2 * np.pi))) * np.exp(- (timestamp_context**2) / (2*tau**2))
             timesurface[timestamp_context < (-3 * tau)] = 0
         all_surfaces[index, :, :, :] = timesurface
     return all_surfaces
