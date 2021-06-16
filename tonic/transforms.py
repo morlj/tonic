@@ -363,7 +363,7 @@ class ToMultiscaleTimesurface:
         self.merge_polarities = merge_polarities
 
     def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
-        surfaces = functional.to_timesurface_numpy(
+        surfaces = functional.to_multiscale_timesurface_numpy(
             events,
             sensor_size,
             ordering,
