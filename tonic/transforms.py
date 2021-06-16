@@ -352,6 +352,26 @@ class ToSparseTensor:
         )
         return tensor, images
 
+class ToMultiscaleTimesurface:
+    """Create multiscale Time surfaces for each event."""
+
+    def __init__(
+        self, tau=5e3, decay="lin", merge_polarities=False
+    ):
+        self.tau = tau
+        self.decay = decay
+        self.merge_polarities = merge_polarities
+
+    def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
+        surfaces = functional.to_timesurface_numpy(
+            events,
+            sensor_size,
+            ordering,
+            self.tau,
+            self.decay,
+            self.merge_polarities,
+        )
+        return surfaces, images
 
 class ToTimesurface:
     """Create Time surfaces for each event."""
