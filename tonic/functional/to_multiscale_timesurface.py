@@ -89,3 +89,4 @@ def to_multiscale_timesurface_numpy(
                     ])
                 timesurface = maxpooled_timesurface.reshape((multiscale_dimensions[0], multiscale_dimensions[0]))
             all_surfaces[index, :, i, :, :] = timesurface
+    return all_surfaces
