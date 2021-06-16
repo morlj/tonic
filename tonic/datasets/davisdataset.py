@@ -14,8 +14,7 @@ class DAVISDATA(VisionDataset):
                             or ['slider_far', 'urban']. See project homepage for a list of available recordings.
                             Can use 'all' to load every recording.
         download (bool): Choose to download data or not. If True and a file with the same name is in the directory, it will be verified and re-download is automatically skipped.
-        transform (callable, optional): A callable of transforms to apply to the data.
-        target_transform (callable, optional): A callable of transforms to apply to the targets/labels.
+        transform (callable, optional): A callable of transforms to apply to events and/or images.
         
     Returns:
         A dataset object that can be indexed or iterated over. One sample returns a tuple of (events, imu, images, opti_track_ground_truth).
@@ -90,7 +89,7 @@ class DAVISDATA(VisionDataset):
 
     def __getitem__(self, index):
         filename = os.path.join(self.location_on_system, self.selection[index] + ".bag")
-        topics = importRosbag(filename)
+        topics = importRosbag(filename, log="ERROR")
         events = topics["/dvs/events"]
         events = np.stack((events["ts"], events["x"], events["y"], events["pol"])).T
         imu = topics["/dvs/imu"]
@@ -102,9 +101,6 @@ class DAVISDATA(VisionDataset):
             events = self.transform(
                 events, self.sensor_size, self.ordering, images=images
             )
-        if self.target_transform is not None:
-            target = self.target_transform(target)
-
         return events, imu, images, target
 
     def __len__(self):
