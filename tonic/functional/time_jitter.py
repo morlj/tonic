@@ -1,50 +1,44 @@
 import numpy as np
 
-from .utils import guess_event_ordering_numpy
-
 
 def time_jitter_numpy(
-    events, ordering=None, variance=1, integer_timestamps=False, clip_negative=True
+    events: np.ndarray,
+    ordering: str,
+    std: float = 1,
+    integer_jitter: bool = False,
+    clip_negative: bool = False,
+    sort_timestamps: bool = False,
 ):
-    """Changes timestamp for each event by drawing samples from a
-    Gaussian distribution with the following properties:
+    """Changes timestamp for each event by drawing samples from a Gaussian
+    distribution and adding them to each timestamp.
 
-        mean = [t]
-        variance = variance
-
-    Will clip negative timestamps by default.
-
-    Args:
+    Parameters:
         events: ndarray of shape [num_events, num_event_channels]
-        ordering: ordering of the event tuple inside of events, if None
-                  the system will take a guess. This function requires 't'
+        ordering: ordering of the event tuple inside of events. This function requires 't'
                   to be in the ordering
-        variance: change the variance of the time jitter
-        integer_timestamps: will round the jitter that is added to timestamps
-        clip_negative: drops events that have negative timestamps, otherwise set to zero.
+        std: the standard deviation of the time jitter
+        integer_jitter: will round the jitter that is added to timestamps
+        clip_negative: drops events that have negative timestamps
+        sort_timestamps: sort the events by timestamps after jittering
 
     Returns:
         temporally jittered set of events.
     """
 
-    if ordering is None:
-        ordering = guess_event_ordering_numpy(events)
     assert "t" in ordering
 
     t_index = ordering.find("t")
-    shifts = np.random.normal(0, variance, len(events))
+    shifts = np.random.normal(0, std, len(events))
 
-    if integer_timestamps:
+    if integer_jitter:
         shifts = shifts.round()
 
-    times = events[:, t_index]
-
-    if np.issubdtype(events.dtype, np.integer):
-        times += shifts.astype(np.int)
-    else:
-        times += shifts
+    events[:, t_index] = events[:, t_index] + shifts
 
     if clip_negative:
-        events = np.delete(events, (np.where(times < 0)), axis=0)
+        events = np.delete(events, (np.where(events[:, t_index] < 0)), axis=0)
+
+    if sort_timestamps:
+        events = events[np.argsort(events[:, t_index]), :]
 
     return events

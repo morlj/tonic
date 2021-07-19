@@ -1,22 +1,37 @@
 import os
 import numpy as np
-from torchvision.datasets.vision import VisionDataset
-from torchvision.datasets.utils import (
+from .dataset import Dataset
+from .download_utils import (
     check_integrity,
     download_and_extract_archive,
     extract_archive,
 )
 
 
-class POKERDVS(VisionDataset):
-    """POKER DVS <http://www2.imse-cnm.csic.es/caviar/POKERDVS.html> data set
+class POKERDVS(Dataset):
+    """POKER DVS <http://www2.imse-cnm.csic.es/caviar/POKERDVS.html>. Events have (txyp) ordering.
+    ::
 
-    arguments:
-        save_to: location to save files to on disk
-        train: choose training or test set
-        download: choose to download data or not
-        transform: list of transforms to apply to the data
-        target_transform: list of transforms to apply to targets
+        @article{serrano2015poker,
+          title={Poker-DVS and MNIST-DVS. Their history, how they were made, and other details},
+          author={Serrano-Gotarredona, Teresa and Linares-Barranco, Bernab{\'e}},
+          journal={Frontiers in neuroscience},
+          volume={9},
+          pages={481},
+          year={2015},
+          publisher={Frontiers}
+        }
+
+    Parameters:
+        save_to (string): Location to save files to on disk.
+        train (bool): If True, uses training subset, otherwise testing subset.
+        download (bool): Choose to download data or verify existing files. If True and a file with the same
+                    name and correct hash is already in the directory, download is automatically skipped.
+        transform (callable, optional): A callable of transforms to apply to the data.
+        target_transform (callable, optional): A callable of transforms to apply to the targets/labels.
+
+    Returns:
+        A dataset object that can be indexed or iterated over. One sample returns a tuple of (events, targets).
     """
 
     base_url = "https://www.neuromorphic-vision.com/public/downloads/"
@@ -68,7 +83,7 @@ class POKERDVS(VisionDataset):
 
         file_path = self.location_on_system + "/" + self.folder_name
         for path, dirs, files in os.walk(file_path):
-            dirs.sort()
+            files.sort()
             for file in files:
                 if file.endswith("npy"):
                     self.data.append(np.load(path + "/" + file))
@@ -76,7 +91,7 @@ class POKERDVS(VisionDataset):
 
     def __getitem__(self, index):
         events, target = self.data[index], self.targets[index]
-        events = events.astype(np.float)
+        events = events.astype(float)
         if self.transform is not None:
             events = self.transform(events, self.sensor_size, self.ordering)
         if self.target_transform is not None:

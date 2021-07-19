@@ -1,23 +1,38 @@
 import os
 import loris
 import numpy
-from torchvision.datasets.vision import VisionDataset
-from torchvision.datasets.utils import (
+from .dataset import Dataset
+from .download_utils import (
     check_integrity,
     download_and_extract_archive,
     extract_archive,
 )
 
 
-class NavGesture(VisionDataset):
-    """NavGesture <https://www.neuromorphic-vision.com/public/downloads/navgesture/> data set
+class NavGesture(Dataset):
+    """NavGesture dataset <https://www.neuromorphic-vision.com/public/downloads/navgesture/>. Events have (txyp) ordering.
+    ::
 
-    arguments:
-        save_to: location to save files to on disk
-        walk_subset: choose either NavGesture-sit (default) or NavGesture-walk
-        download: choose to download data or not
-        transform: list of transforms to apply to the data
-        target_transform: list of transforms to apply to targets
+        @article{maro2020event,
+          title={Event-based gesture recognition with dynamic background suppression using smartphone computational capabilities},
+          author={Maro, Jean-Matthieu and Ieng, Sio-Hoi and Benosman, Ryad},
+          journal={Frontiers in neuroscience},
+          volume={14},
+          pages={275},
+          year={2020},
+          publisher={Frontiers}
+        }
+
+    Parameters:
+        save_to (string): Location to save files to on disk.
+        walk_subset (bool): Choose either NavGesture-sit (default) or NavGesture-walk dataset. No train/test split provided.
+        download (bool): Choose to download data or verify existing files. If True and a file with the same
+                    name and correct hash is already in the directory, download is automatically skipped.
+        transform (callable, optional): A callable of transforms to apply to the data.
+        target_transform (callable, optional): A callable of transforms to apply to the targets/labels.
+
+    Returns:
+        A dataset object that can be indexed or iterated over. One sample returns a tuple of (events, targets).
     """
 
     base_url = "https://www.neuromorphic-vision.com/public/downloads/navgesture/"
@@ -91,7 +106,7 @@ class NavGesture(VisionDataset):
     def __getitem__(self, index):
         events, target = loris.read_file(self.samples[index]), self.targets[index]
         events = numpy.lib.recfunctions.structured_to_unstructured(
-            events["events"], dtype=numpy.float
+            events["events"], dtype=float
         )
         if self.transform is not None:
             events = self.transform(events, self.sensor_size, self.ordering)

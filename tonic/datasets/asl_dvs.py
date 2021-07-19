@@ -1,22 +1,35 @@
 import os
 import numpy as np
 import scipy.io as scio
-from torchvision.datasets.vision import VisionDataset
-from torchvision.datasets.utils import (
+from .dataset import Dataset
+from .download_utils import (
     check_integrity,
     download_and_extract_archive,
     extract_archive,
 )
 
 
-class ASLDVS(VisionDataset):
-    """ASLDVS <https://github.com/PIX2NVS/NVS2Graph> data set
+class ASLDVS(Dataset):
+    """ASL-DVS dataset <https://github.com/PIX2NVS/NVS2Graph>. Events have (txyp) ordering.
+    ::
 
-    arguments:
-        save_to: location to save files to on disk
-        download: choose to download data or not
-        transform: list of transforms to apply to the data
-        target_transform: list of transforms to apply to targets
+        @inproceedings{bi2019graph,
+            title={Graph-based Object Classification for Neuromorphic Vision Sensing},
+            author={Bi, Y and Chadha, A and Abbas, A and and Bourtsoulatze, E and Andreopoulos, Y},
+            booktitle={2019 IEEE International Conference on Computer Vision (ICCV)},
+            year={2019},
+            organization={IEEE}
+        }
+
+    Parameters:
+        save_to (string): Location to save files to on disk.
+        download (bool): Choose to download data or verify existing files. If True and a file with the same
+                    name and correct hash is already in the directory, download is automatically skipped.
+        transform (callable, optional): A callable of transforms to apply to the data.
+        target_transform (callable, optional): A callable of transforms to apply to the targets/labels.
+
+    Returns:
+        A dataset object that can be indexed or iterated over. One sample returns a tuple of (events, targets).
     """
 
     url = "https://www.dropbox.com/sh/ibq0jsicatn7l6r/AACNrNELV56rs1YInMWUs9CAa?dl=1"
@@ -28,9 +41,7 @@ class ASLDVS(VisionDataset):
     sensor_size = (240, 180)
     ordering = "txyp"
 
-    def __init__(
-        self, save_to, download=True, transform=None, target_transform=None,
-    ):
+    def __init__(self, save_to, download=True, transform=None, target_transform=None):
         super(ASLDVS, self).__init__(
             save_to, transform=transform, target_transform=target_transform
         )
@@ -69,9 +80,16 @@ class ASLDVS(VisionDataset):
     def __getitem__(self, index):
         events, target = scio.loadmat(self.samples[index]), self.targets[index]
         events = (
-            np.array([events["ts"], events["x"], events["y"], events["pol"]])
+            np.array(
+                [
+                    events["ts"],
+                    events["x"],
+                    self.sensor_size[1] - events["y"],
+                    events["pol"],
+                ]
+            )
             .squeeze()
-            .T.astype(np.float)
+            .T.astype(float)
         )
         if self.transform is not None:
             events = self.transform(events, self.sensor_size, self.ordering)

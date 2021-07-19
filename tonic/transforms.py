@@ -4,7 +4,7 @@ from . import functional
 class Compose:
     """Composes several transforms together.
 
-    Args:
+    Parameters:
         transforms (list of ``Transform`` objects): list of transform(s) to compose. Even when using a single transform, the Compose wrapper is necessary.
 
     Example:
@@ -41,21 +41,67 @@ class Compose:
 
 
 class Crop:
-    """Crops the sensor size to a smaller sensor and removes events outsize of the target sensor and maps."""
+    """Crops the sensor size to a smaller sensor.
+    Removes events outsize of the target sensor and maps.
 
-    def __init__(self, target_size=(256, 256)):
+    x' = x - new_sensor_start_x
+
+    y' = y - new_sensor_start_y
+
+    Parameters:
+        target_size: size of the sensor that was used [W',H']
+    """
+
+    def __init__(self, target_size):
         self.target_size = target_size
 
     def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
         return functional.crop_numpy(
-            events, images, sensor_size, ordering, self.target_size, multi_image
+            events=events,
+            sensor_size=sensor_size,
+            ordering=ordering,
+            images=images,
+            multi_image=multi_image,
+            target_size=self.target_size,
         )
 
 
-class DropEvents:
-    """Drops events with  a certain probability."""
+class Denoise:
+    """Drops events that are 'not sufficiently connected to other events in the recording.'
+    In practise that means that an event is dropped if no other event occured within a spatial neighbourhood
+    of 1 pixel and a temporal neighbourhood of filter_time time units. Useful to filter noisy recordings
+    where events occur isolated in time.
 
-    def __init__(self, drop_probability=0.5, random_drop_probability=False):
+    Parameters:
+        filter_time (float): maximum temporal distance to next event, otherwise dropped.
+                    Lower values will mean higher constraints, therefore less events.
+    """
+
+    def __init__(self, filter_time: float = 10000):
+        self.filter_time = filter_time
+
+    def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
+        events = functional.denoise_numpy(
+            events=events,
+            sensor_size=sensor_size,
+            ordering=ordering,
+            filter_time=self.filter_time,
+        )
+        return events, images
+
+
+class DropEvents:
+    """Randomly drops events with drop_probability.
+
+    Parameters:
+        drop_probability (float): probability of dropping out event.
+        random_drop_probability (bool): randomize the dropout probability
+                                 between 0 and drop_probability.
+    """
+
+    def __init__(
+        self, drop_probability: float = 0.5, random_drop_probability: bool = False
+    ):
         self.drop_probability = drop_probability
         self.random_drop_probability = random_drop_probability
 
@@ -67,75 +113,102 @@ class DropEvents:
 
 
 class FlipLR:
-    """Mirrors x coordinates of events and images (if present)"""
+    """Flips events and images in x. Pixels map as:
 
-    def __init__(self, flip_probability=0.5):
-        self.flip_probability_lr = flip_probability
+        x' = width - x
+
+    Parameters:
+        flip_probability (float): probability of performing the flip
+    """
+
+    def __init__(self, flip_probability: float = 0.5):
+        self.flip_probability = flip_probability
 
     def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
         return functional.flip_lr_numpy(
-            events, images, sensor_size, ordering, self.flip_probability_lr, multi_image
+            events=events,
+            sensor_size=sensor_size,
+            ordering=ordering,
+            images=images,
+            multi_image=multi_image,
+            flip_probability=self.flip_probability,
         )
 
 
 class FlipPolarity:
-    """Changes polarities 1 to -1 and polarities [-1, 0] to 1"""
+    """Flips polarity of individual events with flip_probability.
+    Changes polarities 1 to -1 and polarities [-1, 0] to 1
 
-    def __init__(self, flip_probability=0.5):
-        self.flip_probability_pol = flip_probability
+    Parameters:
+        flip_probability (float): probability of flipping individual event polarities
+    """
+
+    def __init__(self, flip_probability: float = 0.5):
+        self.flip_probability = flip_probability
 
     def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
         events = functional.flip_polarity_numpy(
-            events, self.flip_probability_pol, ordering
+            events=events, ordering=ordering, flip_probability=self.flip_probability
         )
         return events, images
 
 
 class FlipUD:
-    """Mirrors y coordinates of events and images (if present)"""
+    """
+    Flips events and images in y. Pixels map as:
 
-    def __init__(self, flip_probability=0.5):
-        self.flip_probability_ud = flip_probability
+        y' = height - y
+
+    Parameters:
+        flip_probability (float): probability of performing the flip
+    """
+
+    def __init__(self, flip_probability: float = 0.5):
+        self.flip_probability = flip_probability
 
     def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
         return functional.flip_ud_numpy(
-            events, images, sensor_size, ordering, self.flip_probability_ud, multi_image
+            events=events,
+            sensor_size=sensor_size,
+            ordering=ordering,
+            images=images,
+            multi_image=multi_image,
+            flip_probability=self.flip_probability,
         )
-
-
-class Denoise:
-    """Cycles through all events and drops it if there is no other event within
-    a time of time_filter and a spatial neighbourhood of 1."""
-
-    def __init__(self, time_filter=10000):
-        self.time_filter = time_filter
-
-    def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
-        events = functional.denoise_numpy(
-            events, sensor_size, ordering, self.time_filter
-        )
-        return events, images
 
 
 class MaskHotPixel:
-    """Drops events for certain pixel locations, to suppress pixels that constantly fire
-    (e.g. due to faulty hardware)."""
+    """Drops events for certain pixel locations, to suppress pixels that constantly fire (e.g. due to faulty hardware).
+
+    Parameters:
+        coordinates: list of (x,y) coordinates for which all events will be deleted.
+    """
 
     def __init__(self, coordinates):
         self.coordinates = coordinates
 
     def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
         events = functional.mask_hot_pixel(
-            events, self.coordinates, sensor_size, ordering
+            events=events,
+            sensor_size=sensor_size,
+            ordering=ordering,
+            coordinates=self.coordinates,
         )
         return events, images
 
 
 class RefractoryPeriod:
-    """Cycles through all events and drops event if within refractory period for
-    that pixel."""
+    """Sets a refractory period for each pixel, during which events will be
+    ignored/discarded. We keep events if:
 
-    def __init__(self, refractory_period=0.5):
+        .. math::
+            t_n - t_{n-1} > t_{refrac}
+
+    Parameters:
+        refractory_period (float): refractory period for each pixel in time unit
+    """
+
+    def __init__(self, refractory_period: float):
         self.refractory_period = refractory_period
 
     def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
@@ -146,38 +219,62 @@ class RefractoryPeriod:
 
 
 class SpatialJitter:
-    """Blurs x and y coordinates of events. Integer or subpixel precision possible."""
+    """Changes position for each pixel by drawing samples from a multivariate
+    Gaussian distribution with the following properties:
+
+        mean = [x,y]
+        covariance matrix = [[variance_x, sigma_x_y],[sigma_x_y, variance_y]]
+
+    Jittered events that lie outside the focal plane will be dropped if clip_outliers is True.
+
+    Parameters:
+        variance_x (float): squared sigma value for the distribution in the x direction
+        variance_y (float): squared sigma value for the distribution in the y direction
+        sigma_x_y (float): changes skewness of distribution, only change if you want shifts along diagonal axis.
+        integer_jitter (bool): when True, x and y coordinates will be shifted by integer rather values instead of floats.
+        clip_outliers (bool): when True, events that have been jittered outside the sensor size will be dropped.
+    """
 
     def __init__(
         self,
-        variance_x=1,
-        variance_y=1,
-        sigma_x_y=0,
-        integer_coordinates=True,
-        clip_outliers=True,
+        variance_x: float = 1,
+        variance_y: float = 1,
+        sigma_x_y: float = 0,
+        integer_jitter: bool = False,
+        clip_outliers: bool = False,
     ):
         self.variance_x = variance_x
         self.variance_y = variance_y
         self.sigma_x_y = sigma_x_y
-        self.integer_coordinates = integer_coordinates
+        self.integer_jitter = integer_jitter
         self.clip_outliers = clip_outliers
 
     def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
         events = functional.spatial_jitter_numpy(
-            events,
-            sensor_size,
-            ordering,
-            self.variance_x,
-            self.variance_y,
-            self.sigma_x_y,
-            self.integer_coordinates,
-            self.clip_outliers,
+            events=events,
+            sensor_size=sensor_size,
+            ordering=ordering,
+            variance_x=self.variance_x,
+            variance_y=self.variance_y,
+            sigma_x_y=self.sigma_x_y,
+            integer_jitter=self.integer_jitter,
+            clip_outliers=self.clip_outliers,
         )
         return events, images
 
 
 class SpatioTemporalTransform:
-    """Choose arbitrary spatial and temporal transformation."""
+    """Transform all events spatial and temporal locations based on
+    given spatial transform matrix and temporal transform vector.
+
+    Parameters:
+        spatial_transform: 3x3 matrix which can be used to perform rigid (translation and rotation),
+                           non-rigid (scaling and shearing), and non-affine transformations. Generic to user input.
+        temporal_transform: scale time between events and offset temporal location based on 2 member vector.
+                            Used as arguments to time_skew method.
+        roll: boolean input to determine if transformed events will be translated across sensor boundaries (True).
+              Otherwise, events will be clipped at sensor boundaries.
+    """
 
     def __init__(self, spatial_transform, temporal_transform, roll=False):
         self.spatial_transform = spatial_transform
@@ -196,62 +293,158 @@ class SpatioTemporalTransform:
         return events, images
 
 
-class TimeJitter:
-    """Blurs timestamps of events. Will clip negative timestamps by default."""
+class Subsample:
+    """Multiplies timestamps with a factor and truncates them to integer values.
+    Useful when the native temporal resolution of the original sensor is too high for
+    downstream processing, notably when converting to dense representations of some sort.
+    Uses TimeSkew functional transform under the hood.
 
-    def __init__(self, variance=1, integer_timestamps=False, clip_negative=True):
-        self.variance = variance
-        self.integer_timestamps = integer_timestamps
+    Parameters:
+        coefficient (float): value to multiply timestamps with. Afterwards, timestamps will
+                             be truncated to integer values.
+    """
+
+    def __init__(self, coefficient: float = 1e-3):
+        self.coefficient = coefficient
+
+    def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
+        events = functional.time_skew_numpy(
+            events, ordering, coefficient=self.coefficient, integer_time=True
+        )
+        return events, images
+
+
+class TimeJitter:
+    """Changes timestamp for each event by drawing samples from a Gaussian
+    distribution and adding them to each timestamp.
+
+    Parameters:
+        std (float): change the standard deviation of the time jitter
+        integer_jitter (bool): will round the jitter that is added to timestamps
+        clip_negative (bool): drops events that have negative timestamps
+        sort_timestamps (bool): sort the events by timestamps
+    """
+
+    def __init__(
+        self,
+        std: float = 1,
+        integer_jitter: bool = False,
+        clip_negative: bool = False,
+        sort_timestamps: bool = False,
+    ):
+        self.std = std
+        self.integer_jitter = integer_jitter
         self.clip_negative = clip_negative
+        self.sort_timestamps = sort_timestamps
 
     def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
         events = functional.time_jitter_numpy(
-            events, ordering, self.variance, self.integer_timestamps, self.clip_negative
+            events,
+            ordering,
+            self.std,
+            self.integer_jitter,
+            self.clip_negative,
+            self.sort_timestamps,
         )
         return events, images
 
 
 class TimeReversal:
-    """Will reverse the timestamps of events with a certain probability."""
+    """Temporal flip is defined as:
 
-    def __init__(self, flip_probability=0.5):
-        self.flip_probability_t = flip_probability
+        .. math::
+           t_i' = max(t) - t_i
+
+           p_i' = -1 * p_i
+
+    Parameters:
+        flip_probability (float): probability of performing the flip
+    """
+
+    def __init__(self, flip_probability: float = 0.5):
+        self.flip_probability = flip_probability
 
     def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
         return functional.time_reversal_numpy(
-            events, images, sensor_size, ordering, self.flip_probability_t, multi_image
+            events=events,
+            sensor_size=sensor_size,
+            ordering=ordering,
+            images=images,
+            multi_image=multi_image,
+            flip_probability=self.flip_probability,
         )
 
 
 class TimeSkew:
-    """Scale and/or offset all timestamps."""
+    """Skew all event timestamps according to a linear transform,
+    potentially sampled from a distribution of acceptable functions.
 
-    def __init__(self, coefficient=0.9, offset=0):
+    Parameters:
+        coefficient (float): a real-valued multiplier applied to the timestamps of the events.
+                     E.g. a coefficient of 2.0 will double the effective delay between any
+                     pair of events.
+        offset (int): value by which the timestamps will be shifted after multiplication by
+                the coefficient. Negative offsets are permissible but may result in
+                in an exception if timestamps are shifted below 0.
+    """
+
+    def __init__(
+        self, coefficient: float, offset: float = 0, integer_time: bool = False
+    ):
         self.coefficient = coefficient
         self.offset = offset
+        self.integer_time = integer_time
 
     def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
         events = functional.time_skew_numpy(
-            events, ordering, self.coefficient, self.offset
+            events, ordering, self.coefficient, self.offset, self.integer_time
         )
         return events, images
 
 
 class UniformNoise:
-    """Inject noise events."""
+    """
+    Introduces a fixed number of noise depending on sensor size and noise
+    density factor, uniformly distributed across the focal plane and in time.
 
-    def __init__(self, noise_density=1e-8):
+    Parameters:
+        scaling_factor_to_micro_sec: this is a scaling factor to get to micro
+                                     seconds from the time resolution used in the event stream,
+                                     as the noise time resolution is fixed to 1 micro second.
+        noise_density: A noise density of 1 will mean one noise event for every
+                       pixel of the sensor size for every micro second.
+    """
+
+    def __init__(
+        self, scaling_factor_to_micro_sec: float = 1, noise_density: float = 1e-8
+    ):
+        self.scaling_factor_to_micro_sec = scaling_factor_to_micro_sec
         self.noise_density = noise_density
 
     def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
-        surfaces = functional.uniform_noise_numpy(
-            events, sensor_size, ordering, self.noise_density
+        events = functional.uniform_noise_numpy(
+            events,
+            sensor_size,
+            ordering,
+            self.scaling_factor_to_micro_sec,
+            self.noise_density,
         )
         return events, images
 
 
 class ToAveragedTimesurface:
-    """Creates Averaged Time Surfaces."""
+    """Representation that creates averaged timesurfaces for each event for one recording. Taken from the paper
+    Sironi et al. 2018, HATS: Histograms of averaged time surfaces for robust event-based object classification
+    https://openaccess.thecvf.com/content_cvpr_2018/papers/Sironi_HATS_Histograms_of_CVPR_2018_paper.pdf
+
+    Parameters:
+        cell_size (int): size of each square in the grid
+        surface_size (int): has to be odd
+        time_window (float): how far back to look for past events for the time averaging
+        tau (float): time constant to decay events around occuring event with.
+        decay (str): can be either 'lin' or 'exp', corresponding to linear or exponential decay.
+        merge_polarities (bool): flag that tells whether polarities should be taken into account separately or not.
+    """
 
     def __init__(
         self,
@@ -285,39 +478,116 @@ class ToAveragedTimesurface:
         return surfaces, images
 
 
-class ToRatecodedFrame:
-    """Bin events to frames."""
+class ToFrame:
+    """Accumulate events to frames by slicing along constant time (time_window),
+    constant number of events (spike_count) or constant number of frames (n_time_bins / n_event_bins).
+    You can set one of the first 4 parameters to choose the slicing method. Depending on which method you choose,
+    overlap will assume different functionality, whether that might be temporal overlap, number of events
+    or fraction of a bin. As a rule of thumb, here are some considerations if you are unsure which slicing
+    method to choose:
 
-    def __init__(self, frame_time=5000, merge_polarities=True):
-        self.frame_time = frame_time
+    * If your recordings are of roughly the same length, a safe option is to set time_window. Bare in mind
+      that the number of events can vary greatly from slice to slice, but will give you some consistency when
+      training RNNs or other algorithms that have time steps.
+
+    * If your recordings have roughly the same amount of activity / number of events and you are more interested
+      in the spatial composition, then setting spike_count will give you frames that are visually more consistent.
+
+    * The previous time_window and spike_count methods will likely result in a different amount of frames for each
+      recording. If your training method benefits from consistent number of frames across a dataset (for easier
+      batching for example), or you want a parameter that is easier to set than the exact window length or number
+      of events per slice, consider fixing the number of frames by setting n_time_bins or n_event_bins. The two
+      methods slightly differ with respect to how the slices are distributed across the recording. You can define
+      an overlap between 0 and 1 to provide some robustness.
+
+    Parameters:
+        time_window (float): time window length for one frame. Use the same time unit as timestamps in the event recordings.
+                             Good if you want temporal consistency in your training, bad if you need some visual consistency
+                             for every frame if the recording's activity is not consistent.
+        spike_count (int): number of events per frame. Good for training CNNs which do not care about temporal consistency.
+        n_time_bins (int): fixed number of frames, sliced along time axis. Good for generating a pre-determined number of
+                           frames which might help with batching.
+        n_event_bins (int): fixed number of frames, sliced along number of events in the recording. Good for generating a
+                            pre-determined number of frames which might help with batching.
+        overlap (float): overlap between frames defined either in time units, number of events or number of bins between 0 and 1.
+        include_incomplete (bool): if True, includes overhang slice when time_window or spike_count is specified.
+                                   Not valid for bin_count methods.
+        merge_polarities (bool): if True, merge polarity channels to a single channel.
+    """
+
+    def __init__(
+        self,
+        time_window=None,
+        spike_count=None,
+        n_time_bins=None,
+        n_event_bins=None,
+        overlap=0.0,
+        include_incomplete=False,
+        merge_polarities=False,
+    ):
+        self.time_window = time_window
+        self.spike_count = spike_count
+        self.n_time_bins = n_time_bins
+        self.n_event_bins = n_event_bins
+        self.overlap = overlap
+        self.include_incomplete = include_incomplete
         self.merge_polarities = merge_polarities
 
     def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
-        frames = functional.to_ratecoded_frame_numpy(
-            events,
-            sensor_size,
-            ordering,
-            frame_time=self.frame_time,
+        frames = functional.to_frame_numpy(
+            events=events,
+            sensor_size=sensor_size,
+            ordering=ordering,
+            time_window=self.time_window,
+            spike_count=self.spike_count,
+            n_time_bins=self.n_time_bins,
+            n_event_bins=self.n_event_bins,
+            overlap=self.overlap,
+            include_incomplete=self.include_incomplete,
             merge_polarities=self.merge_polarities,
         )
         return frames, images
 
 
 class ToSparseTensor:
-    """Turn event array (N,E) into sparse Tensor (B,T,W,H)."""
+    """Turn event array (N,E) into sparse Tensor (B,T,W,H) if E is 4 (mostly event camera recordings),
+    otherwise into sparse tensor (B,T,W) for mostly audio recordings."""
 
-    def __init__(self, merge_polarities=False):
+    def __init__(self, type="pytorch", merge_polarities=False):
         self.merge_polarities = merge_polarities
+        self.type = type
 
     def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
-        tensor = functional.to_sparse_tensor_pytorch(
-            events, sensor_size, ordering, merge_polarities=self.merge_polarities
-        )
+        if self.type == "pytorch" or "pt" or "torch":
+            tensor = functional.to_sparse_tensor_pytorch(
+                events=events,
+                sensor_size=sensor_size,
+                ordering=ordering,
+                merge_polarities=self.merge_polarities,
+            )
+        elif self.type == "tensorflow" or "tf":
+            tensor = functional.to_sparse_tensor_tensorflow(
+                events=events,
+                sensor_size=sensor_size,
+                ordering=ordering,
+                merge_polarities=self.merge_polarities,
+            )
+        else:
+            raise NotImplementedError
         return tensor, images
 
 
 class ToTimesurface:
-    """Create Time surfaces for each event."""
+    """Representation that creates timesurfaces for each event in the recording. Modeled after the paper
+    Lagorce et al. 2016, Hots: a hierarchy of event-based time-surfaces for pattern recognition
+    https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=7508476
+
+    Parameters:
+        surface_dimensions (int, int): width does not have to be equal to height, however both numbers have to be odd.
+        tau (float): time constant to decay events around occuring event with.
+        decay (str): can be either 'lin' or 'exp', corresponding to linear or exponential decay.
+        merge_polarities (bool): flag that tells whether polarities should be taken into account separately or not.
+    """
 
     def __init__(
         self, surface_dimensions=(7, 7), tau=5e3, decay="lin", merge_polarities=False
@@ -342,6 +612,19 @@ class ToTimesurface:
         return surfaces, images
 
 
+class ToVoxelGrid(object):
+    """Build a voxel grid with bilinear interpolation in the time domain from a set of events."""
+
+    def __init__(self, n_time_bins):
+        self.n_time_bins = n_time_bins
+
+    def __call__(self, events, sensor_size, ordering, images=None, multi_image=None):
+        volume = functional.to_voxel_grid_numpy(
+            events, sensor_size, ordering, self.n_time_bins
+        )
+        return volume, images
+
+
 class Repeat:
     """Copies target n times. Useful to transform sample labels into sequences."""
 
@@ -362,7 +645,7 @@ class ToOneHotEncoding:
         return np.eye(self.n_classes)[target]
 
 
-class NumpyAsType(object):
+class NumpyAsType:
     def __init__(self, cast_to):
         self.cast_to = cast_to
 

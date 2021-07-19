@@ -1,32 +1,47 @@
 import os
 import numpy as np
-from torchvision.datasets.vision import VisionDataset
-from torchvision.datasets.utils import (
+from .dataset import Dataset
+from .download_utils import (
     check_integrity,
     download_and_extract_archive,
     extract_archive,
 )
 
 
-class NMNIST(VisionDataset):
-    """NMNIST <https://www.garrickorchard.com/datasets/n-mnist> data set.
+class NMNIST(Dataset):
+    """N-MNIST dataset <https://www.garrickorchard.com/datasets/n-mnist>. Events have (xytp) ordering.
+    ::
 
-    arguments:
-        save_to: location to save files to on disk
-        train: choose training or test set
-        download: choose to download data or not
-        transform: list of transforms to apply to the data
-        target_transform: list of transforms to apply to targets
-        first_saccade_only: only work with events of the first of three saccades
+        @article{orchard2015converting,
+          title={Converting static image datasets to spiking neuromorphic datasets using saccades},
+          author={Orchard, Garrick and Jayawant, Ajinkya and Cohen, Gregory K and Thakor, Nitish},
+          journal={Frontiers in neuroscience},
+          volume={9},
+          pages={437},
+          year={2015},
+          publisher={Frontiers}
+        }
+
+    Parameters:
+        save_to (string): Location to save files to on disk.
+        train (bool): If True, uses training subset, otherwise testing subset.
+        download (bool): Choose to download data or verify existing files. If True and a file with the same
+                    name and correct hash is already in the directory, download is automatically skipped.
+        transform (callable, optional): A callable of transforms to apply to the data.
+        target_transform (callable, optional): A callable of transforms to apply to the targets/labels.
+        first_saccade_only (bool): If True, only work with events of the first of three saccades. Results in about a third of the events overall.
+
+    Returns:
+        A dataset object that can be indexed or iterated over. One sample returns a tuple of (events, targets).
     """
 
-    base_url = "https://www.dropbox.com/sh/tg2ljlbmtzygrag/"
-    test_zip = base_url + "AADSKgJ2CjaBWh75HnTNZyhca/Test.zip?dl=1"
-    train_zip = base_url + "AABlMOuR15ugeOxMCX0Pvoxga/Train.zip?dl=1"
-    test_md5 = "69ca8762b2fe404d9b9bad1103e97832"
+    url = "https://www.dropbox.com/sh/tg2ljlbmtzygrag/AABrCc6FewNZSNsoObWJqY74a?dl=1"
+    archive_filename = "nmnist-archive.zip"
+    archive_md5 = "c5b12b1213584bd3fe976b55fe43c835"
     train_md5 = "20959b8e626244a1b502305a9e6e2031"
-    test_filename = "nmnist_test.zip"
-    train_filename = "nmnist_train.zip"
+    test_md5 = "69ca8762b2fe404d9b9bad1103e97832"
+    train_filename = "Train.zip"
+    test_filename = "Test.zip"
     classes = [
         "0 - zero",
         "1 - one",
@@ -56,19 +71,16 @@ class NMNIST(VisionDataset):
             save_to, transform=transform, target_transform=target_transform
         )
         self.train = train
-        self.location_on_system = save_to
+        self.location_on_system = os.path.join(save_to, "nmnist/")
         self.first_saccade_only = first_saccade_only
-        self.data = []
         self.samples = []
         self.targets = []
 
         if train:
-            self.url = self.train_zip
             self.file_md5 = self.train_md5
             self.filename = self.train_filename
             self.folder_name = "Train"
         else:
-            self.url = self.test_zip
             self.file_md5 = self.test_md5
             self.filename = self.test_filename
             self.folder_name = "Test"
@@ -84,9 +96,9 @@ class NMNIST(VisionDataset):
                 + " You can use download=True to download it"
             )
 
-        file_path = self.location_on_system + "/" + self.folder_name
+        file_path = os.path.join(self.location_on_system, self.folder_name)
         for path, dirs, files in os.walk(file_path):
-            dirs.sort()
+            files.sort()
             for file in files:
                 if file.endswith("bin"):
                     self.samples.append(path + "/" + file)
@@ -107,14 +119,19 @@ class NMNIST(VisionDataset):
 
     def download(self):
         download_and_extract_archive(
-            self.url, self.location_on_system, filename=self.filename, md5=self.file_md5
+            self.url,
+            self.location_on_system,
+            filename=self.archive_filename,
+            md5=self.archive_md5,
         )
+        extract_archive(os.path.join(self.location_on_system, self.train_filename))
+        extract_archive(os.path.join(self.location_on_system, self.test_filename))
 
     def _read_dataset_file(self, filename):
         f = open(filename, "rb")
         raw_data = np.fromfile(f, dtype=np.uint8)
         f.close()
-        raw_data = np.uint32(raw_data)
+        raw_data = raw_data.astype(int)
 
         all_y = raw_data[1::5]
         all_x = raw_data[0::5]
@@ -135,10 +152,12 @@ class NMNIST(VisionDataset):
         if self.first_saccade_only:
             td_indices = np.where(all_ts < 100000)[0]
 
-        td = np.empty([td_indices.size, 4], dtype=np.int32)
-        td[:, 0] = all_x[td_indices]
-        td[:, 1] = all_y[td_indices]
-        td[:, 2] = all_ts[td_indices]
-        td[:, 3] = all_p[td_indices]
-
-        return td
+        events = np.column_stack(
+            (
+                all_x[td_indices],
+                all_y[td_indices],
+                all_ts[td_indices],
+                all_p[td_indices],
+            )
+        )
+        return events.astype(float)

@@ -1,7 +1,7 @@
 import os
 import numpy as np
-from torchvision.datasets.vision import VisionDataset
-from torchvision.datasets.utils import (
+from .dataset import Dataset
+from .download_utils import (
     check_integrity,
     download_and_extract_archive,
     extract_archive,
@@ -10,15 +10,28 @@ from numpy.lib.recfunctions import structured_to_unstructured
 import loris
 
 
-class NCARS(VisionDataset):
-    """N-Cars <https://www.prophesee.ai/dataset-n-cars-download/> data set.
+class NCARS(Dataset):
+    """N-Cars dataset <https://www.prophesee.ai/dataset-n-cars-download/>. Events have (txyp) ordering.
+    ::
 
-    arguments:
-        save_to: location to save files to on disk
-        train: choose training or test set
-        download: choose to download data or not
-        transform: list of transforms to apply to the data
-        target_transform: list of transforms to apply to targets
+        @inproceedings{sironi2018hats,
+          title={HATS: Histograms of averaged time surfaces for robust event-based object classification},
+          author={Sironi, Amos and Brambilla, Manuele and Bourdis, Nicolas and Lagorce, Xavier and Benosman, Ryad},
+          booktitle={Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition},
+          pages={1731--1740},
+          year={2018}
+        }
+
+    Parameters:
+        save_to (string): Location to save files to on disk.
+        train (bool): If True, uses training subset, otherwise testing subset.
+        download (bool): Choose to download data or verify existing files. If True and a file with the same
+                    name and correct hash is already in the directory, download is automatically skipped.
+        transform (callable, optional): A callable of transforms to apply to the data.
+        target_transform (callable, optional): A callable of transforms to apply to the targets/labels.
+
+    Returns:
+        A dataset object that can be indexed or iterated over. One sample returns a tuple of (events, targets).
     """
 
     url = "http://www.prophesee.ai/resources/Prophesee_Dataset_n_cars.zip"
@@ -44,7 +57,7 @@ class NCARS(VisionDataset):
         )
 
         self.location_on_system = save_to
-        self.data = []
+        self.samples = []
         self.targets = []
 
         if download:
@@ -71,10 +84,6 @@ class NCARS(VisionDataset):
             extract_archive(os.path.join(save_to, target_zip))
             os.rename(source_path, target_path)
 
-        # We will not be loading everything into memory. Instead, we will keep a list of samples into file
-        # Could have reused self.data for that purpose as well.
-        self.samples = []
-
         file_path = target_path
         for path, dirs, files in os.walk(file_path):
             dirs.sort()
@@ -85,7 +94,7 @@ class NCARS(VisionDataset):
 
     def __getitem__(self, index):
         events = loris.read_file(self.samples[index])["events"]
-        events = np.array(structured_to_unstructured(events, dtype=np.float))
+        events = np.array(structured_to_unstructured(events, dtype=float))
         events[:, 2] -= self.minimum_y_value
         target = self.targets[index]
         if self.transform is not None:

@@ -1,39 +1,25 @@
 import numpy as np
 
-from .utils import guess_event_ordering_numpy
-
 
 def mix_ev_streams_numpy(
-    events, offsets=None, check_conflicts=False, sensor_size=(346, 260), ordering=None
+    events, sensor_size, ordering, offsets=None, check_conflicts=False
 ):
-
     """Combine two or more event streams into a single stream. Event collisions result in a single spike
     or none if polarities are opposite. Collisions numbering greater than two are handled by consensus.
     While not technically required, it is recommended that all event streams be the same [x,y] dimension.
 
-    Args:
+    Parameters:
         events: tuple of event streams which are ndarrays of shape [num_events, num_event_channels]
         offsets: tuple of start time offsets for each event stream:
                     - Default all streams start at the same time
                     - Random : applies a random offset from 0 to the timespan of the longest event stream
         check_conflicts: bool, whether or not to check for event collisions. Slower processing if True and probably uneccessary most of the time
         sensor_size: size of the sensor that was used [W,H]
-        ordering: ordering of the event tuple inside of events, if None the system
-                  will take a guess through guess_event_ordering_numpy.
+        ordering: ordering of the event tuple inside of events. Requires 'x', 'y' and 't' to be in the ordering.
 
     Returns:
         a combined event stream
     """
-
-    if ordering is None:
-        assert len(events) > 1
-        prime_ordering = guess_event_ordering_numpy(events[0])
-        orderings = [guess_event_ordering_numpy(x) for x in events]
-
-        for ordering in orderings:
-            assert ordering == prime_ordering
-
-        ordering = prime_ordering
 
     assert "x" and "y" and "t" in ordering
 
@@ -43,9 +29,9 @@ def mix_ev_streams_numpy(
     p_loc = ordering.find("p")
 
     # shift events to zero
-    events = np.array(events)
+    events = np.array(events, dtype=object)
 
-    if events.dtype != np.object:
+    if events.dtype != object:
         # event streams are all of same size
         events[:, :, t_loc] -= np.tile(events[:, 0, t_loc], (events.shape[1], 1)).T
 
