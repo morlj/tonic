@@ -1,6 +1,7 @@
 import os
 import numpy as np
 from importRosbag.importRosbag import importRosbag
+import pandas
 from .dataset import Dataset
 from .download_utils import check_integrity, download_url
 
@@ -34,12 +35,15 @@ class VPR(Dataset):
 
     base_url = "https://zenodo.org/record/4302805/files/"
     recordings = [  # recording names and their md5 hash
-        ["dvs_vpr_2020-04-21-17-03-03.bag", "04473f623aec6bda3d7eadfecfc1b2ce"],
-        ["dvs_vpr_2020-04-22-17-24-21.bag", "ca6db080a4054196fe65825bce3db351"],
-        ["dvs_vpr_2020-04-24-15-12-03.bag", "909569732e323ff04c94379a787f2a69"],
-        ["dvs_vpr_2020-04-27-18-13-29.bag", "e80b6c0434690908d855445792d4de3b"],
-        ["dvs_vpr_2020-04-28-09-14-11.bag", "7854ede61c0947adb0f072a041dc3bad"],
-        ["dvs_vpr_2020-04-29-06-20-23.bag", "d7ccfeb6539f1e7b077ab4fe6f45193c"],
+         ["dvs_vpr_2020-04-21-17-03-03_subset.feather","995fad91f715629cca54c2cb3b1e467b"],
+         ["dvs_vpr_2020-04-22-17-24-21_subset.feather","32e8cf67c59ca885f2d262b13961e168"],
+                  
+#        ["dvs_vpr_2020-04-21-17-03-03.bag", "04473f623aec6bda3d7eadfecfc1b2ce"],
+#        ["dvs_vpr_2020-04-22-17-24-21.bag", "ca6db080a4054196fe65825bce3db351"],
+#        ["dvs_vpr_2020-04-24-15-12-03.bag", "909569732e323ff04c94379a787f2a69"],
+#        ["dvs_vpr_2020-04-27-18-13-29.bag", "e80b6c0434690908d855445792d4de3b"],
+#        ["dvs_vpr_2020-04-28-09-14-11.bag", "7854ede61c0947adb0f072a041dc3bad"],
+#        ["dvs_vpr_2020-04-29-06-20-23.bag", "d7ccfeb6539f1e7b077ab4fe6f45193c"],
     ]
 
     sensor_size = (260, 346)
@@ -52,27 +56,25 @@ class VPR(Dataset):
         folder_name = "visual_place_recognition"
         self.location_on_system = os.path.join(save_to, folder_name)
 
-        if download:
-            self.download()
-        else:
-            print("Verifying existing files.")
-            for (recording, md5_hash) in self.recordings:
-                if not check_integrity(
-                    os.path.join(self.location_on_system, recording), md5_hash
-                ):
-                    raise RuntimeError(
-                        "Dataset file not found or corrupted."
-                        + " You can use download=True to download it"
-                    )
+        for (recording, md5_hash) in self.recordings:
+            if not check_integrity(
+                os.path.join(self.location_on_system, recording),md5_hash
+            ):
+                raise RuntimeError("Dataset file not found or corrupted.")
+            
 
     def __getitem__(self, index):
         file_path = os.path.join(self.location_on_system, self.recordings[index][0])
+        
+        #extract data and put it in the correct form - change from rosbag to pandas
+        #each row is one event, event in txyp order
         topics = importRosbag(filePathOrName=file_path, log="ERROR")
         events = topics["/dvs/events"]
         events = np.stack((events["ts"], events["x"], events["y"], events["pol"])).T
-        imu = topics["/dvs/imu"]
-        images = topics["/dvs/image_raw"]
+        imu = None #topics["/dvs/imu"]
+        images = None #topics["/dvs/image_raw"]
         #         images["frames"] = np.stack(images["frames"])
+
 
         if self.transform is not None:
             events = self.transform(
