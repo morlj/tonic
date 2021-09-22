@@ -1,7 +1,7 @@
 import os
 import numpy as np
-from importRosbag.importRosbag import importRosbag
-import pandas
+#from importRosbag.importRosbag import importRosbag
+import pandas as pd
 from .dataset import Dataset
 from .download_utils import check_integrity, download_url
 
@@ -33,7 +33,7 @@ class VPR(Dataset):
         A dataset object that can be indexed or iterated over. One sample returns a tuple of (events, imu, images).
     """
 
-    base_url = "https://zenodo.org/record/4302805/files/"
+#    base_url = "https://zenodo.org/record/4302805/files/"
     recordings = [  # recording names and their md5 hash
          ["dvs_vpr_2020-04-21-17-03-03_subset.feather","995fad91f715629cca54c2cb3b1e467b"],
          ["dvs_vpr_2020-04-22-17-24-21_subset.feather","32e8cf67c59ca885f2d262b13961e168"],
@@ -46,31 +46,23 @@ class VPR(Dataset):
 #        ["dvs_vpr_2020-04-29-06-20-23.bag", "d7ccfeb6539f1e7b077ab4fe6f45193c"],
     ]
 
-    sensor_size = (260, 346)
+    sensor_size = (346,260) #(260, 346)
     ordering = "txyp"
 
     def __init__(self, save_to, download=True, transform=None, target_transform=None):
         super(VPR, self).__init__(
             save_to, transform=transform, target_transform=target_transform
         )
-        folder_name = "visual_place_recognition"
-        self.location_on_system = os.path.join(save_to, folder_name)
-
-        for (recording, md5_hash) in self.recordings:
-            if not check_integrity(
-                os.path.join(self.location_on_system, recording),md5_hash
-            ):
-                raise RuntimeError("Dataset file not found or corrupted.")
-            
-
+#        print(self.location_on_system)
+        
     def __getitem__(self, index):
         file_path = os.path.join(self.location_on_system, self.recordings[index][0])
         
-        #extract data and put it in the correct form - change from rosbag to pandas
         #each row is one event, event in txyp order
-        topics = importRosbag(filePathOrName=file_path, log="ERROR")
-        events = topics["/dvs/events"]
-        events = np.stack((events["ts"], events["x"], events["y"], events["pol"])).T
+        #topics = importRosbag(filePathOrName=file_path, log="ERROR")
+        events = pd.read_feather(path=file_path) #topics["/dvs/events"]
+        events = events.to_numpy()
+        #events = np.stack((events["ts"], events["x"], events["y"], events["pol"])).T
         imu = None #topics["/dvs/imu"]
         images = None #topics["/dvs/image_raw"]
         #         images["frames"] = np.stack(images["frames"])
