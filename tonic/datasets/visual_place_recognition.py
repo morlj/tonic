@@ -2,8 +2,9 @@ import os
 import numpy as np
 #from importRosbag.importRosbag import importRosbag
 import pandas as pd
-from .dataset import Dataset
-from .download_utils import check_integrity, download_url
+from tonic.dataset import Dataset
+from tonic import transforms
+from tonic.download_utils import check_integrity, download_url
 
 
 class VPR(Dataset):
@@ -35,18 +36,12 @@ class VPR(Dataset):
 
 #    base_url = "https://zenodo.org/record/4302805/files/"
     recordings = [  # recording names and their md5 hash
-         ["dvs_vpr_2020-04-21-17-03-03_subset.feather","995fad91f715629cca54c2cb3b1e467b"],
-         ["dvs_vpr_2020-04-22-17-24-21_subset.feather","32e8cf67c59ca885f2d262b13961e168"],
-                  
-#        ["dvs_vpr_2020-04-21-17-03-03.bag", "04473f623aec6bda3d7eadfecfc1b2ce"],
-#        ["dvs_vpr_2020-04-22-17-24-21.bag", "ca6db080a4054196fe65825bce3db351"],
-#        ["dvs_vpr_2020-04-24-15-12-03.bag", "909569732e323ff04c94379a787f2a69"],
-#        ["dvs_vpr_2020-04-27-18-13-29.bag", "e80b6c0434690908d855445792d4de3b"],
-#        ["dvs_vpr_2020-04-28-09-14-11.bag", "7854ede61c0947adb0f072a041dc3bad"],
-#        ["dvs_vpr_2020-04-29-06-20-23.bag", "d7ccfeb6539f1e7b077ab4fe6f45193c"],
+                  ["bags_2021-08-19-08-25-42_denoised.feather"],
+                  ["bags_2021-08-19-08-28-43_denoised.feather"],
+                  ["bags_2021-08-19-09-45-28_denoised.feather"],
     ]
 
-    sensor_size = (346,260) #(260, 346)
+    sensor_size = (260,346)
     ordering = "txyp"
 
     def __init__(self, save_to, download=True, transform=None, target_transform=None):
@@ -56,23 +51,58 @@ class VPR(Dataset):
 #        print(self.location_on_system)
         
     def __getitem__(self, index):
-        file_path = os.path.join(self.location_on_system, self.recordings[index][0])
+        file_path = os.path.join(self.location_on_system, self.recordings[index])#[0])
         
         #each row is one event, event in txyp order
         #topics = importRosbag(filePathOrName=file_path, log="ERROR")
-        events = pd.read_feather(path=file_path) #topics["/dvs/events"]
-        events = events.to_numpy()
-        #events = np.stack((events["ts"], events["x"], events["y"], events["pol"])).T
+        event_stream = pd.read_feather(path=file_path)
+        event_stream['t'] = (event_stream['t'] * 10e5).astype(np.uint64)  
+        
+        im_width, im_height = int(event_stream['x'].max() + 1), int(event_stream['y'].max() + 1)
+        self.sensor_size = (im_width,im_height)
+        
+        events = np.copy(event_stream.to_numpy(np.uint64))
         imu = None #topics["/dvs/imu"]
         images = None #topics["/dvs/image_raw"]
         #         images["frames"] = np.stack(images["frames"])
 
 
-        if self.transform is not None:
-            events = self.transform(
-                events, self.sensor_size, self.ordering, images=images
-            )
-        return events, imu, images
+#        if self.transform is not None:
+#            events = self.transform(
+#                events, self.sensor_size, self.ordering, images=images
+#            )
+            
+        # now create and apply the transform
+        # note that we are dropping a lot of events for HATS
+        # HOTS works without dropping events
+        # Try and find out what's going on
+        
+        #need to check how this fits with new version of tonic
+        transform = transforms.Compose([
+            transforms.DropEvent(0.9),
+            transforms.ToAveragedTimesurface(ordering=self.ordering, sensor_size=self.sensor_size)
+        ])
+
+        # here we extract 1 second chunks from the numpy array
+        place_number = 2
+        # first find the absolute times
+        time_start = events[0, 0] + place_number * 10e5
+        time_end = events[0, 0] + (place_number + 1) * 10e5
+    
+        # then find the corresponding indices
+        start_idx = np.searchsorted(events[:, 0], time_start)
+        end_idx = np.searchsorted(events[:, 0], time_end)
+
+        # and finally slice the array
+        events_subset = np.copy(events[start_idx:end_idx])
+
+        # and apply the transform
+        out = transform(events_subset,self.ordering,self.sensor_size)    
+            
+            
+            
+            
+        return out #events, imu, images
 
     def __len__(self):
         return len(self.recordings)
