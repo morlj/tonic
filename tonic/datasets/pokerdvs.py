@@ -1,7 +1,7 @@
 import os
 import numpy as np
-from .dataset import Dataset
-from .download_utils import (
+from tonic.dataset import Dataset
+from tonic.download_utils import (
     check_integrity,
     download_and_extract_archive,
     extract_archive,
@@ -93,7 +93,7 @@ class POKERDVS(Dataset):
         events, target = self.data[index], self.targets[index]
         events = events.astype(float)
         if self.transform is not None:
-            events = self.transform(events, self.sensor_size, self.ordering)
+            events = self.transform(events)
         if self.target_transform is not None:
             target = self.target_transform(target)
         return events, target

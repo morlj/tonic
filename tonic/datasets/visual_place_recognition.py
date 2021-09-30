@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from tonic.dataset import Dataset
 from tonic import transforms
+
 from tonic.download_utils import check_integrity, download_url
 
 
@@ -65,7 +66,6 @@ class VPR(Dataset):
         imu = None #topics["/dvs/imu"]
         images = None #topics["/dvs/image_raw"]
         #         images["frames"] = np.stack(images["frames"])
-
 
 #        if self.transform is not None:
 #            events = self.transform(

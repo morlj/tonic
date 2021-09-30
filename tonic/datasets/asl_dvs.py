@@ -1,8 +1,8 @@
 import os
 import numpy as np
 import scipy.io as scio
-from .dataset import Dataset
-from .download_utils import (
+from tonic.dataset import Dataset
+from tonic.download_utils import (
     check_integrity,
     download_and_extract_archive,
     extract_archive,
@@ -92,7 +92,7 @@ class ASLDVS(Dataset):
             .T.astype(float)
         )
         if self.transform is not None:
-            events = self.transform(events, self.sensor_size, self.ordering)
+            events = self.transform(events)
         if self.target_transform is not None:
             target = self.target_transform(target)
         return events, target

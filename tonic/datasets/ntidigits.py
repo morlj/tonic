@@ -1,8 +1,8 @@
 import os
 import numpy as np
 import h5py
-from .dataset import Dataset
-from .download_utils import check_integrity, download_url
+from tonic.dataset import Dataset
+from tonic.download_utils import check_integrity, download_url
 
 
 class NTIDIGITS(Dataset):
@@ -74,7 +74,7 @@ class NTIDIGITS(Dataset):
         timestamps *= 10e5
         events = np.vstack((timestamps, addresses, np.ones(timestamps.shape[0]))).T
         if self.transform is not None:
-            events = self.transform(events, self.sensor_size, self.ordering)
+            events = self.transform(events)
         if self.target_transform is not None:
             target = self.target_transform(target)
         return events, target

@@ -1,8 +1,8 @@
 import os
 import numpy as np
 from importRosbag.importRosbag import importRosbag
-from .dataset import Dataset
-from .download_utils import check_integrity, download_url
+from tonic.dataset import Dataset
+from tonic.download_utils import check_integrity, download_url
 
 
 class DAVISDATA(Dataset):
@@ -111,9 +111,7 @@ class DAVISDATA(Dataset):
         target = topics["/optitrack/davis"]
 
         if self.transform is not None:
-            events = self.transform(
-                events, self.sensor_size, self.ordering, images=images
-            )
+            events = self.transform(events)
         return events, imu, images, target
 
     def __len__(self):
