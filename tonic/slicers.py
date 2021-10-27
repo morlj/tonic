@@ -4,7 +4,8 @@ from typing import Any, List, Tuple
 from . import functional
 import numpy as np
 
-
+# some slicing methods have been copied and/or adapted from 
+# https://gitlab.com/synsense/aermanager/-/blob/master/aermanager/preprocess.py
 class Slicer(Protocol):
     def get_slice_metadata(self, data: Any) -> List[Any]:
         """
@@ -12,7 +13,7 @@ class Slicer(Protocol):
         Eg. it could return the indices at which the data would be sliced.
         The return value of this method should be usable by the method slice_with_meta.
 
-        Args:
+        Parameters:
             data:
 
         Returns:
@@ -23,7 +24,7 @@ class Slicer(Protocol):
     def slice_with_metadata(self, data: Any, metadata: Any) -> List[Any]:
         """
         Slice the data using the metadata.
-        Args:
+        Parameters:
             data:
             metadata:
 
@@ -35,7 +36,7 @@ class Slicer(Protocol):
     def slice(self, data: Any) -> List[Any]:
         """
         Slice the given data and return the sliced data
-        Args:
+        Parameters:
             data:
 
         Returns:
@@ -52,7 +53,7 @@ class SliceByTime:
     |   window1      |
              |   window2      |
 
-    Args:
+    Parameters:
         time_window: int
             Length of time for each xytp (ms)
         overlap: int
@@ -60,6 +61,7 @@ class SliceByTime:
         include_incomplete: bool
             include incomplete slices ie potentially the last xytp
     """
+
     time_window: float
     overlap: float = 0.0
     include_incomplete: bool = False
@@ -95,13 +97,14 @@ class SliceByEventCount:
     """
     Return xytp sliced to equal number of events specified by event_count
 
-    Args:
+    Parameters:
         event_count (int):  Number of events per xytp
         overlap: int
             No. of spikes overlapping in the following xytp(ms)
         include_incomplete: bool
             include incomplete slices ie potentially the last xytp
     """
+
     event_count: int
     overlap: int = 0
     include_incomplete: bool = False
@@ -113,7 +116,7 @@ class SliceByEventCount:
     def get_slice_metadata(self, data: np.ndarray) -> List[Tuple[int, int]]:
         n_events = len(data)
         event_count = min(self.event_count, n_events)
-        
+
         stride = self.event_count - self.overlap
         if stride <= 0:
             raise Exception("Inferred stride <= 0")
@@ -126,7 +129,7 @@ class SliceByEventCount:
         indices_start = (np.arange(n_slices) * stride).astype(int)
         indices_end = indices_start + event_count
         return list(zip(indices_start, indices_end))
-    
+
     @staticmethod
     def slice_with_metadata(data: np.ndarray, metadata: List[Tuple[int, int]]):
         return [data[start:end] for start, end in metadata]
@@ -137,10 +140,11 @@ class SliceAtIndices:
     """
     Slices data at the specified indices
 
-    Args:
+    Parameters:
         start_indices: (List[Int]): List of start indices
         end_indices: (List[Int]): List of end indices (exclusive)
     """
+
     start_indices: np.ndarray
     end_indices: np.ndarray
 
@@ -161,10 +165,11 @@ class SliceAtTimePoints:
     """
     Slice the data at the specified time points
 
-    Args:
+    Parameters:
         tw_start: (List[Int]): List of start times
         tw_end: (List[Int]): List of end times
     """
+
     start_tw: np.ndarray
     end_tw: np.ndarray
 

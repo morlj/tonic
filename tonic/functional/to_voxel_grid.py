@@ -1,47 +1,34 @@
 import numpy as np
-from .utils import is_multi_image
 
 
-# Code taken from https://github.com/uzh-rpg/rpg_e2vid/blob/master/utils/inference_utils.py#L431
-def to_voxel_grid_numpy(events, sensor_size, ordering, n_time_bins=10):
+# Code adapted from https://github.com/uzh-rpg/rpg_e2vid/blob/master/utils/inference_utils.py#L431
+def to_voxel_grid_numpy(events, sensor_size, n_time_bins=10):
     """Build a voxel grid with bilinear interpolation in the time domain from a set of events.
+    Implements the event volume from Zhu et al. 2019, Unsupervised event-based learning of optical flow, depth, and egomotion
 
     Parameters:
         events: ndarray of shape [num_events, num_event_channels]
         sensor_size: size of the sensor that was used [W,H].
-        ordering: ordering of the event tuple inside of events. This function requires 'x', 'y',
-                  't' and 'p' to be in the ordering.
         n_time_bins: number of bins in the temporal axis of the voxel grid.
 
     Returns:
         numpy array of n event volumes (n,w,h,t)
 
     """
-    assert "x" in ordering and "y" in ordering
-    assert "t" in ordering and "p" in ordering
+    assert "x" and "y" and "t" and "p" in events.dtype.names
+    assert sensor_size[2] == 2
 
-    x_loc = ordering.index("x")
-    y_loc = ordering.index("y")
-    t_loc = ordering.index("t")
-    p_loc = ordering.index("p")
-
-    voxel_grid = np.zeros(
-        (n_time_bins, sensor_size[1], sensor_size[0]), np.float32
-    ).ravel()
+    voxel_grid = np.zeros((n_time_bins, sensor_size[1], sensor_size[0]), float).ravel()
 
     # normalize the event timestamps so that they lie between 0 and n_time_bins
-    last_stamp = events[-1, t_loc]
-    first_stamp = events[0, t_loc]
-    deltaT = last_stamp - first_stamp
-
-    if deltaT == 0:
-        deltaT = 1.0
-
-    events[:, t_loc] = (n_time_bins) * (events[:, t_loc] - first_stamp) / deltaT
-    ts = events[:, t_loc]
-    xs = events[:, x_loc].astype(int)
-    ys = events[:, y_loc].astype(int)
-    pols = events[:, p_loc]
+    ts = (
+        n_time_bins
+        * (events["t"].astype(float) - events["t"][0])
+        / (events["t"][-1] - events["t"][0])
+    )
+    xs = events["x"].astype(int)
+    ys = events["y"].astype(int)
+    pols = events["p"]
     pols[pols == 0] = -1  # polarity should be +1 / -1
 
     tis = ts.astype(int)

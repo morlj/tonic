@@ -12,24 +12,16 @@
 #
 import os
 import sys
-import sphinx_rtd_theme
-
-sys.path.insert(0, os.path.abspath(".."))
+import tonic
 
 # -- Project information -----------------------------------------------------
 
 project = "Tonic"
-copyright = "2020, the Neuromorphs"
-author = "the Neuromorphs"
+copyright = "2019-2021, the neuromorphs of Telluride"
+author = "Gregor Lenz"
 
-try:
-    import tonic
-
-    version = ".".join(tonic.__version__.split("."))
-    release = tonic.__version__
-except ImportError:
-    version = ""
-    release = ""
+version = ".".join(tonic.__version__.split("."))
+release = tonic.__version__
 
 master_doc = "index"
 
@@ -38,11 +30,15 @@ master_doc = "index"
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ["sphinx.ext.autodoc", "sphinx.ext.napoleon", "sphinx_rtd_theme"]
+extensions = ["sphinx.ext.autodoc", "sphinx.ext.napoleon", "myst_nb"]
 
 # Napoleon settings
 napoleon_google_docstring = True
 napoleon_numpy_docstring = True
+
+# MyST settings
+jupyter_execute_notebooks = "off"
+suppress_warnings = ["myst.header"]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -57,11 +53,20 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 
-html_theme = "sphinx_rtd_theme"
-html_logo = "_static/tonic-logo-white.png"
+html_theme = "sphinx_book_theme"
+html_logo = "_static/tonic-logo-black.png"
+html_favicon = "_static/tonic_favicon.png"
 html_show_sourcelink = True
+html_sourcelink_suffix = ""
 
-html_theme_options = {"logo_only": True, "analytics_id": "UA-36748283-2"}
+html_theme_options = {
+    "logo_only": True,
+    "repository_url": "https://github.com/neuromorphs/tonic",
+    "use_repository_button": True,
+    "use_issues_button": True,
+    "use_edit_page_button": True,
+    "use_fullscreen_button": False,
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

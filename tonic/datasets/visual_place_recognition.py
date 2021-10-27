@@ -11,8 +11,11 @@ from tonic.download_utils import check_integrity, download_url
 class VPR(Dataset):
     """Event-Based Visual Place Recognition With Ensembles of Temporal Windows <https://zenodo.org/record/4302805>.
     Events have (txyp) ordering.
-    ::
     
+    .. note::  To be able to read this dataset and its GPS files, you will need the `pynmea2` package installed. 
+
+    ::
+
         @article{fischer2020event,
           title={Event-based visual place recognition with ensembles of temporal windows},
           author={Fischer, Tobias and Milford, Michael},
@@ -26,30 +29,26 @@ class VPR(Dataset):
 
     Parameters:
         save_to (string): Location to save files to on disk.
-        download (bool): Choose to download data or verify existing files. If True and a file with the same
-                    name and correct hash is already in the directory, download is automatically skipped.
         transform (callable, optional): A callable of transforms to apply to the data.
-        target_transform (callable, optional): A callable of transforms to apply to the targets/labels.
-
-    Returns:
-        A dataset object that can be indexed or iterated over. One sample returns a tuple of (events, imu, images).
     """
 
 #    base_url = "https://zenodo.org/record/4302805/files/"
     recordings = [  # recording names and their md5 hash
+<<<<<<< HEAD
                   ["bags_2021-08-19-08-25-42_denoised.feather"],
                   ["bags_2021-08-19-08-28-43_denoised.feather"],
                   ["bags_2021-08-19-09-45-28_denoised.feather"],
     ]
 
-    sensor_size = (260,346) #xyp
-    ordering = "txyp"
+    sensor_size = (260,346,2) #xyp
+    dtype = np.dtype([("t", int), ("x", int), ("y", int), ("p", int)])
+    ordering = dtype.names
 
-    def __init__(self, save_to, download=True, transform=None, target_transform=None):
-        super(VPR, self).__init__(
-            save_to, transform=transform, target_transform=target_transform
-        )
-#        print(self.location_on_system)
+    def __init__(self, save_to, transform=None, target_transform=None):
+        super(VPR, self).__init__(save_to, transform=transform, target_transform=target_transform)
+
+#        if not self._check_exists():
+#            self.download()
         
     def __getitem__(self, index):
         file_path = os.path.join(self.location_on_system, self.recordings[index][0])
@@ -57,7 +56,9 @@ class VPR(Dataset):
         #each row is one event, event in txyp order
         #topics = importRosbag(filePathOrName=file_path, log="ERROR")
         event_stream = pd.read_feather(path=file_path)
-        event_stream['t'] = (event_stream['t']).astype(np.uint64)    #add in a check for decimals -> x10^5 conversion?
+        event_stream['t'] = (event_stream['t']).astype(np.uint64)
+#        event_stream['t'] -= event_stream['t'][0]
+#        event_stream['t] *= 1e6
         
         im_width, im_height = int(event_stream['x'].max() + 1), int(event_stream['y'].max() + 1)
         im_npol = int(event_stream['p'].nunique())
@@ -69,19 +70,19 @@ class VPR(Dataset):
         #         images["frames"] = np.stack(images["frames"])
 
 #        if self.transform is not None:
-#            events = self.transform(
-#                events, self.sensor_size, self.ordering, images=images
-#            )
-            
+#            events = self.transform(events)  #,self.sensor_size, self.ordering, images=images)
+#        if self.target_transform is not None:
+#            targets = self.target_transform(targets)
+
+
         # now create and apply the transform
         # note that we are dropping a lot of events for HATS
         # HOTS works without dropping events
         # Try and find out what's going on
         
-        #need to check how this fits with new version of tonic
         transform = transforms.Compose([
             transforms.DropEvent(0.8),
-            transforms.ToAveragedTimesurface(sensor_size=self.sensor_size) #ordering=self.ordering, 
+            transforms.ToAveragedTimesurface(events) #sensor_size=self.sensor_size,ordering=self.ordering)
 #           transforms.ToTimesurface() 
 #           transforms.ToFrame()
         ])
@@ -102,19 +103,29 @@ class VPR(Dataset):
         # and apply the transform
         out = transform(events_subset)    
             
-            
-            
-            
         return out #events, imu, images
+
 
     def __len__(self):
         return len(self.recordings)
 
     def download(self):
-        for (recording, md5_hash) in self.recordings:
-            download_url(
-                self.base_url + recording,
-                self.location_on_system,
-                filename=recording,
-                md5=md5_hash,
-            )
+        for recording in self.recordings:
+            for filename, md5_hash in recording:
+                download_url(
+                    self.base_url + filename,
+                    self.location_on_system,
+                    filename=filename,
+                    md5=md5_hash,
+                )
+
+    def _check_exists(self):
+        # check if all filenames are correct
+        files_present = list(
+            [
+                check_integrity(os.path.join(self.location_on_system, filename))
+                for recording in self.recordings
+                for filename, md5 in recording
+            ]
+        )
+        return all(files_present)

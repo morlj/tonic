@@ -2,10 +2,7 @@ import os
 import numpy as np
 from struct import unpack
 from tonic.dataset import Dataset
-from tonic.download_utils import (
-    download_and_extract_archive,
-    extract_archive,
-)
+from tonic.download_utils import download_and_extract_archive, extract_archive
 
 
 class SMNIST(Dataset):
@@ -24,7 +21,7 @@ class SMNIST(Dataset):
                                                 otherwise testing subset.
         duplicate (bool):                       If True, emits two spikes
                                                 per threshold crossing
-        num_neurons (integer):                  How many neurons to use to encode 
+        num_neurons (integer):                  How many neurons to use to encode
                                                 thresholds(must be odd)
         dt (float):                             Duration(in microseconds)
                                                 of each timestep
@@ -49,7 +46,8 @@ class SMNIST(Dataset):
     train_labels_file = "train-labels-idx1-ubyte"
     test_images_file = "t10k-images-idx3-ubyte"
     test_labels_file = "t10k-labels-idx1-ubyte"
-    ordering = "txp"
+    dtype = np.dtype([("t", int), ("x", int), ("p", int)])
+    ordering = dtype.names
 
     classes = [
         "0 - zero",
@@ -81,7 +79,7 @@ class SMNIST(Dataset):
         self.location_on_system = os.path.join(save_to, "smnist")
         self.train = train
         self.duplicate = duplicate
-        self.sensor_size = (num_neurons,)
+        self.sensor_size = (num_neurons, 1, 1)
         self.dt = dt
 
         if (num_neurons % 2) == 0:
@@ -169,9 +167,10 @@ class SMNIST(Dataset):
             spike_time[1::2] = double_spike_time + 1
 
         # stack and add artificial polarity of 1
-        events = np.vstack(
+        events = np.column_stack(
             (spike_time * self.dt, spike_idx, np.ones(spike_idx.shape[0]))
-        ).T
+        )
+        events = np.lib.recfunctions.unstructured_to_structured(events, self.dtype)
         target = self.label_data[index]
 
         if self.transform is not None:
