@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 from tonic.dataset import Dataset
 from tonic import transforms
-import gc
 
 from tonic.download_utils import check_integrity, download_url
 
@@ -66,6 +65,8 @@ class VPR(Dataset):
         
         events = np.copy(event_stream.to_numpy(np.uint64))
         del event_stream ####try to avoid having to do this####
+        ### Uncomment for event frames
+        events = np.lib.recfunctions.unstructured_to_structured(events, self.dtype)
         imu = None #topics["/dvs/imu"]
         images = None #topics["/dvs/image_raw"]
         #         images["frames"] = np.stack(images["frames"])
@@ -82,29 +83,33 @@ class VPR(Dataset):
         # Try and find out what's going on
         
         transform = transforms.Compose([
-            transforms.ToAveragedTimesurface(sensor_size=self.sensor_size)
-#           transforms.ToTimesurface() 
-#           transforms.ToFrame()
+#            transforms.ToAveragedTimesurface(sensor_size=self.sensor_size)
+#           transforms.ToTimesurface(sensor_size=self.sensor_size,surface_dimensions=(7,7))
+           transforms.ToFrame(sensor_size=self.sensor_size, time_window=10e5)
         ])
-
-        # here we extract 1 second chunks from the numpy array
-        place_number = 2
-        # first find the absolute times
-        time_start = events[0,0] + place_number * 10e5
-        time_end = events[0,0] + (place_number + 1) * 10e5
         
-        # then find the corresponding indices
-        start_idx = np.searchsorted(events[:,0], time_start)
-        end_idx = np.searchsorted(events[:,0], time_end)
-
-        # and finally slice the array
-        events_subset = np.copy(events[start_idx:end_idx])
-        events_subset = np.lib.recfunctions.unstructured_to_structured(events_subset, self.dtype)
-
+        # here we extract 1 second chunks from the numpy array
+### Uncomment for HATS/HOTS
+# =============================================================================
+#         place_number = 2
+#         # first find the absolute times
+#         time_start = events[0,0] + place_number * 10e5
+#         time_end = events[0,0] + (place_number + 1) * 10e5
+#          
+#         # then find the corresponding indices
+#         start_idx = np.searchsorted(events[:,0], time_start)
+#         end_idx = np.searchsorted(events[:,0], time_end)
+#  
+#         # and finally slice the array
+#         events_subset = np.copy(events[start_idx:end_idx])
+#         events_subset = np.lib.recfunctions.unstructured_to_structured(events_subset, self.dtype)
+# =============================================================================
+ 
         # and apply the transform
-        out = transform(events_subset)
+#        out = transform(events_subset) #for HATS/HOTS
+        out = transform(events) #for event frame
             
-        return out, events_subset #, imu, images
+        return out, events#_subset #, imu, images
 
 
     def __len__(self):
