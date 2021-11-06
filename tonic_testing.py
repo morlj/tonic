@@ -1,46 +1,42 @@
 from tonic.datasets import VPR
 import numpy as np
-import matplotlib.pyplot as plt
 import time
+from scipy.spatial import distance
 
-
-#moving this in to vpr so that whole dataset can be returned
-def visualiseEvents(events, vprObj=None, datastream=None):
-    if (vprObj is None) and (datastream is None):
-        imgVisualiseGrey = events.T
-    else:
-        timesurface_size = events[0].shape[1]//2
-        imgSize = tuple(sum(x) for x in zip(vprObj.sensor_size[0:2],(timesurface_size*2,timesurface_size*2)))
-        imgVisualise = np.zeros(imgSize)
-        for index,event in enumerate(events):
-            x,y = datastream[index][1].astype(int), datastream[index][2].astype(int)
-            min_x = x
-            max_x = x + timesurface_size*2
-            min_y = y
-            max_y = y + timesurface_size*2
-            imgVisualise[min_x:max_x+1,min_y:max_y+1] = imgVisualise[min_x:max_x+1,min_y:max_y+1] + event[0]
-        visNorm = np.linalg.norm(imgVisualise)
-        imgVisualiseGrey = imgVisualise / visNorm
-        
-    plt.imshow(imgVisualiseGrey.T,cmap="gray")
-    plt.show()
-    return imgVisualiseGrey
-
+import matplotlib.pyplot as plt
 
 #create the dataset variable
 mydataset = VPR(save_to="./visual_place_recognition")
 tic = time.perf_counter()
-query_trans,query_events = mydataset[0]  #, imu, images 
-ref_trans, ref_events = mydataset[1]
+query_trans,query_vis = mydataset[1]  #, imu, images
+#ref_trans, ref_vis = mydataset[0] # this one is not synchronised with the other two
+ref_trans, ref_vis = mydataset[2]
 toc = time.perf_counter()
-
-## For Frame ##########################
-visualiseEvents(ref_trans[0][0])
-visualiseEvents(query_trans[0][0])
-## For HATS and HOTS ##################
-#visualiseEvents(ref_trans,mydataset,ref_events)
-#visualiseEvents(query_trans,mydataset,query_events)
-print(f"HOTS ran in {toc-tic:0.4f} seconds")
+print(f"Event Frame ran in {toc-tic:0.4f} seconds")
 
 
-#HATS - linear SVM on 'image' array
+## Visualise Event Frames
+
+#for i, ref in enumerate(ref_vis)
+plt.imshow(query_vis[5])
+plt.show()
+plt.imshow(ref_vis[5])
+plt.show()
+
+## Create descriptors for each place and visualise matches
+descriptors = np.zeros([len(query_trans),len(ref_trans)])
+for i, place_q in enumerate(query_trans):
+    for j, place_r in enumerate(ref_trans):
+        descriptor = distance.cdist(place_q[1,:,:],place_r[1,:,:],metric='cityblock') 
+        descriptors[i,j] = np.trace(descriptor)
+
+
+min_descriptors = descriptors.argmin(axis=1)
+fig, ax = plt.subplots()
+ax.imshow(descriptors,cmap='hot')
+ax.plot(min_descriptors,np.arange(0,descriptors.shape[0]),'*',color='blue')
+ax.set_xlabel('Reference Places')
+ax.set_ylabel('Query Places')
+plt.show()
+
+
