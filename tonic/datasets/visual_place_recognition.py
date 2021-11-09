@@ -69,7 +69,7 @@ class VPR(Dataset):
         
 # Create event subset, ignoring every (10e5-dt) ms chunk
         ### Uncomment for event frames        
-        events = np.lib.recfunctions.unstructured_to_structured(events, self.dtype)
+#        events = np.lib.recfunctions.unstructured_to_structured(events, self.dtype)
         imu = None #topics["/dvs/imu"]
         images = None #topics["/dvs/image_raw"]
         #         images["frames"] = np.stack(images["frames"])
@@ -90,43 +90,40 @@ class VPR(Dataset):
 #           transforms.ToTimesurface(sensor_size=self.sensor_size,surface_dimensions=(7,7))
            transforms.ToFrame(sensor_size=self.sensor_size, time_window=delta_t)
         ])
-        
-        # here we extract 1 second chunks from the numpy array
-### Uncomment for HATS/HOTS
-# =============================================================================
-#         max_time = events[len(events)-1,0]
-#         out_vis = np.zeros([((max_time-events[0,0])//10e5).astype(int),im_width,im_height])
-#         index = 0
-#         place_number = 2
-#         time_start = events[0,0] + place_number * 10e5
-#         time_end = events[0,0] + (place_number + 1) * 10e5
-#         while (time_end <= max_time):     
-#             # then find the corresponding indices
-#             start_idx = np.searchsorted(events[:,0], time_start)
-#             end_idx = np.searchsorted(events[:,0], time_end)
-# 
-#             # and finally slice the array
-#             events_subset = np.copy(events[start_idx:end_idx])
-#             events_subset = np.lib.recfunctions.unstructured_to_structured(events_subset, self.dtype)
-#  
-#             # and apply the transform
-#             out = transform(events_subset) #for HATS/HOTS
-#             
-#             # add transform to visualisation
-#             out_vis[index] = self.visualiseEvents(out,events)    
-#             
-#             # then set up times for next loop
-#             index = index + 1
-#             place_number = place_number + 1
-#             # first find the absolute times
-#             time_start = events[0,0] + place_number * 10e5
-#             time_end = events[0,0] + (place_number + 1) * 10e5
-# =============================================================================
-         
-### Uncomment for Event Fram            
-        out = transform(events)
-        out_vis = self.visualiseEvents(out)
 
+
+        
+        # here we extract delta_t time chunks from the numpy array
+        max_time = events[len(events)-1,0]
+#        out_vis = np.zeros([((max_time-events[0,0])//10e5).astype(int),im_width,im_height,3])
+        out = np.zeros([((max_time-events[0,0])//10e5).astype(int),im_npol,im_height,im_width])
+        index = 0
+        place_number = 1
+        time_start = events[0,0] + place_number * 10e5
+        while ((time_start+delta_t) <= max_time):     
+             # then find the corresponding indices
+             start_idx = np.searchsorted(events[:,0], time_start)
+             time_end = events[start_idx,0] + delta_t
+             end_idx = np.searchsorted(events[:,0],time_end)
+ 
+             # and finally slice the array
+             events_subset = np.copy(events[start_idx:end_idx+1])
+             events_subset = np.lib.recfunctions.unstructured_to_structured(events_subset, self.dtype)
+  
+             # and apply the transform
+             event_transform = transform(events_subset)
+             out[index] = event_transform[0]
+             
+             # add transform to visualisation
+#             out_vis[index] = self.visualiseEvents(out)    
+             
+             # then set up times for next loop
+             index = index + 1
+             place_number = place_number + 1
+             # first find the absolute times
+             time_start = events[0,0] + place_number * 10e5
+             
+        out_vis = self.visualiseEvents(out)  
         return out, out_vis#_subset #, imu, images
 
 
